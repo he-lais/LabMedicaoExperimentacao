@@ -2,12 +2,12 @@ import requests
 import json
 import pandas as pd
 
-url: str = 'https://api.github.com/graphql'
+url = 'https://api.github.com/graphql'
 
-headers: str = {'Authorization': 'Bearer 73af344f4d09bd6552ba2a68c80981a4146328a2'}
+headers = {'Authorization': 'bearer 73af344f4d09bd6552ba2a68c80981a4146328a2'}
 
-query: str = """query estrelas {
-  search(type: REPOSITORY, first: 10, after: {AFTER}, query: "stars:=>0") {
+query = """query estrelas {
+  search(type: REPOSITORY, first: 10{AFTER}, query: "stars:=>0") {
     pageInfo{      
       endCursor
     }
@@ -28,7 +28,7 @@ query: str = """query estrelas {
         dataUltimaRelease: latestRelease {
           createdAt
         }
-        totalOpenIssues: issues(states: CLOSED) {
+        totalClosedIssues: issues(states: CLOSED) {
           totalCount
         }
         totalIssues: issues {
@@ -40,22 +40,23 @@ query: str = """query estrelas {
 }"""
 
 
-def executar_requisicao(url: str, query: str, header: dict) -> dict: 
+def executar_requisicao(url, query, header): 
     request = requests.post(url, json={'query': query}, headers=header)
 
     if request.status_code == 200:
         return request.json()
     else:
-        raise Exception("falha na requisição com código {}. {}".format(request.status_code, query))
+        return 'falha'
 
-after: str = 'null'
-resposta: dict = executar_requisicao(url, query.replace('{AFTER}', after), headers)
-after: str = '"' + resposta['data']['search']['pageInfo']['endCursor'] + '"'
-
-for i in range(2):
-  aux: dict = executar_requisicao(url, query.replace('{AFTER}', after), headers)
-  after: str = '"' + aux['data']['search']['pageInfo']['endCursor'] + '"'
-  resposta.update(aux)
+after = ''
+resposta = {'resp': []}
+i = 0
+while i < 100:
+  aux = executar_requisicao(url, query.replace('{AFTER}', after), headers)
+  if aux != 'falha':
+    after = ', after: "' + aux['data']['search']['pageInfo']['endCursor'] + '"'
+    i += 1
+    resposta['resp'] += aux['data']['search']['nodes']
 
 #criando arquivo .json, lendo e convertendo para Excel.
 with open('resposta.json', 'w') as f:
@@ -65,6 +66,8 @@ d: dict
 with open('resposta.json', 'r') as f:
     d = json.load(f)
 
-df: pd.DataFrame = pd.DataFrame.from_dict(d['data']['search']['nodes'])
+df: pd.DataFrame = pd.DataFrame.from_dict(d['resp'])
 df.to_csv('resposta.csv')
 df.to_excel('resposta.xls')
+
+print('FIM DO PROCESSAMENTO')
